@@ -1,15 +1,14 @@
 const mongoose = require("mongoose");
 
-// One document per post in the Neighbors feed.
-const postSchema = new mongoose.Schema(
+// One document per reply to a post in the Neighbors feed.
+const replySchema = new mongoose.Schema(
   {
+    postId: { type: mongoose.Schema.Types.ObjectId, ref: "Post", required: true },
     authorName: { type: String, required: true, trim: true },
     authorEmail: { type: String, required: true, trim: true, lowercase: true },
-    category: { type: String, required: true, trim: true },
     body: { type: String, required: true, trim: true, maxlength: 130 },
-    replyCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Post", postSchema);
+module.exports = mongoose.model("Reply", replySchema);
