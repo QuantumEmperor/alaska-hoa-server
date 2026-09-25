@@ -21,8 +21,8 @@ and checks passwords when someone logs in. It's meant to run online
 5. Under **Environment**, add these variables (copy the names exactly):
    - `MONGODB_URI` — your real connection string, with your real password in it
    - `JWT_SECRET` — a long random string (Render can generate one for you)
-   - `ADMIN_EMAIL` — surrealblues@gmail.com
-   - `ALLOWED_ORIGIN` — `*` for now; change once your app has a permanent address
+   - `ADMIN_EMAIL` — quantumactivist.88@gmail.com
+   - `ALLOWED_ORIGIN` — `https://quantumemperor.github.io`
 6. Click **Create Web Service**. Render will show a live log while it builds and starts.
 7. Once it says something like "HOA Next Door server running," copy the address
    Render gives your service (it'll look like `https://hoa-next-door.onrender.com`)

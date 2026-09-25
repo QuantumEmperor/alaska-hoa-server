@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const authRoutes = require("./auth-routes");
+const postRoutes = require("./post-routes");
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/posts", postRoutes);
 
 // Catch anything that slipped past a route without crashing the server.
 app.use((err, req, res, next) => {
