@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
   try {
     const {
       name, email, password, unit, role,
-      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit,
+      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit, quorum,
       newsletter, agreedToPrivacyPolicy,
     } = req.body;
 
@@ -39,7 +39,7 @@ router.post("/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const doc = await Registration.create({
       name, email: String(email).toLowerCase(), passwordHash, unit, role,
-      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit,
+      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit, quorum,
       newsletter: !!newsletter, agreedToPrivacyPolicy: true,
     });
 

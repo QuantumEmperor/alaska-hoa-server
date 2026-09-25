@@ -18,6 +18,7 @@ const registrationSchema = new mongoose.Schema(
     mgrName: { type: String, default: "", trim: true },
     reserve: { type: String, required: true }, // yes / no / not sure
     lawsuit: { type: String, default: "" }, // yes / no / not sure
+    quorum: { type: String, default: "" }, // number, percent, or "not sure" needed for a quorum
 
     newsletter: { type: Boolean, default: false },
     agreedToPrivacyPolicy: { type: Boolean, required: true },
