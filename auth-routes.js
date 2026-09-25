@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Registration = require("./registration-model");
 const { requireLogin, requireAdmin } = require("./auth-middleware");
+const { notifyAdmin } = require("./mailer");
 
 const router = express.Router();
 
@@ -42,6 +43,11 @@ router.post("/register", async (req, res) => {
       condo, units, dues, covers, mgr, mgrName, reserve, lawsuit, quorum,
       newsletter: !!newsletter, agreedToPrivacyPolicy: true,
     });
+
+    notifyAdmin(
+      "New HOA Next Door sign-up: " + doc.name,
+      "Name: " + doc.name + "\nEmail: " + doc.email + "\nCondo: " + doc.condo + "\nUnit: " + doc.unit + "\nRole: " + doc.role
+    );
 
     const token = sign(doc);
     res.status(201).json({
