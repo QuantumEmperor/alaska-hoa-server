@@ -1,27 +1,33 @@
-const nodemailer = require("nodemailer");
+// Sends you a notification email using Resend (resend.com) instead of
+// Gmail's own mail servers. Render (like many cloud hosts) blocks outgoing
+// SMTP connections, which is why the Gmail version kept timing out. Resend
+// sends over a normal HTTPS web request instead, so it isn't blocked.
+var fetchFn = typeof fetch === "function" ? fetch : require("node-fetch");
 
-// Sends you a plain email using your own Gmail account. If EMAIL_USER /
-// EMAIL_PASS aren't set, this quietly does nothing instead of crashing
-// anything — notifications are a nice-to-have, not something that should
-// ever break a sign-up.
 function notifyAdmin(subject, text) {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  if (!process.env.RESEND_API_KEY || !process.env.ADMIN_EMAIL) {
     console.log("Email not configured; skipping notification:", subject);
     return;
   }
-  var transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+  fetchFn("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.RESEND_API_KEY,
+      "Content-Type": "application/json",
     },
-  });
-  transporter
-    .sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+    body: JSON.stringify({
+      from: "HOA Next Door <onboarding@resend.dev>",
+      to: [process.env.ADMIN_EMAIL],
       subject: subject,
       text: text,
+    }),
+  })
+    .then(function (res) {
+      if (!res.ok) {
+        return res.text().then(function (t) {
+          console.error("Could not send notification email:", res.status, t);
+        });
+      }
     })
     .catch(function (err) {
       console.error("Could not send notification email:", err.message);
