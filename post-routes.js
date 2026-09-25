@@ -14,9 +14,14 @@ function displayName(fullName) {
   return parts[0] + " " + parts[parts.length - 1].charAt(0).toUpperCase() + ".";
 }
 
+function isAdminEmail(email) {
+  return String(email || "").toLowerCase() === (process.env.ADMIN_EMAIL || "").toLowerCase();
+}
+
 // List posts, newest first. Any signed-in person can see them.
 router.get("/", requireLogin, async (req, res) => {
   try {
+    var admin = isAdminEmail(req.user.email);
     var posts = await Post.find().sort({ createdAt: -1 }).limit(200);
     res.json(
       posts.map(function (p) {
@@ -27,6 +32,7 @@ router.get("/", requireLogin, async (req, res) => {
           body: p.body,
           createdAt: p.createdAt,
           replyCount: p.replyCount || 0,
+          canDelete: admin || p.authorEmail === String(req.user.email || "").toLowerCase(),
         };
       })
     );
@@ -56,6 +62,7 @@ router.post("/", requireLogin, async (req, res) => {
       body: post.body,
       createdAt: post.createdAt,
       replyCount: 0,
+      canDelete: true,
     });
   } catch (err) {
     console.error(err);
@@ -63,9 +70,26 @@ router.post("/", requireLogin, async (req, res) => {
   }
 });
 
+// Delete a post (and its replies). Only the post's own author or the admin can do this.
+router.delete("/:id", requireLogin, async (req, res) => {
+  try {
+    var post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ error: "That post no longer exists." });
+    var allowed = isAdminEmail(req.user.email) || post.authorEmail === String(req.user.email || "").toLowerCase();
+    if (!allowed) return res.status(403).json({ error: "You can only delete your own posts." });
+    await Reply.deleteMany({ postId: post._id });
+    await Post.deleteOne({ _id: post._id });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not delete that post." });
+  }
+});
+
 // List replies to a post, oldest first (like a conversation).
 router.get("/:id/replies", requireLogin, async (req, res) => {
   try {
+    var admin = isAdminEmail(req.user.email);
     var replies = await Reply.find({ postId: req.params.id }).sort({ createdAt: 1 });
     res.json(
       replies.map(function (r) {
@@ -74,6 +98,7 @@ router.get("/:id/replies", requireLogin, async (req, res) => {
           name: displayName(r.authorName),
           body: r.body,
           createdAt: r.createdAt,
+          canDelete: admin || r.authorEmail === String(req.user.email || "").toLowerCase(),
         };
       })
     );
@@ -105,10 +130,27 @@ router.post("/:id/replies", requireLogin, async (req, res) => {
       name: displayName(reply.authorName),
       body: reply.body,
       createdAt: reply.createdAt,
+      canDelete: true,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not save your reply." });
+  }
+});
+
+// Delete a reply. Only the reply's own author or the admin can do this.
+router.delete("/:id/replies/:replyId", requireLogin, async (req, res) => {
+  try {
+    var reply = await Reply.findById(req.params.replyId);
+    if (!reply) return res.status(404).json({ error: "That reply no longer exists." });
+    var allowed = isAdminEmail(req.user.email) || reply.authorEmail === String(req.user.email || "").toLowerCase();
+    if (!allowed) return res.status(403).json({ error: "You can only delete your own replies." });
+    await Reply.deleteOne({ _id: reply._id });
+    await Post.findByIdAndUpdate(req.params.id, { $inc: { replyCount: -1 } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not delete that reply." });
   }
 });
 
