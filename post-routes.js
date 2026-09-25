@@ -33,6 +33,7 @@ router.get("/", requireLogin, async (req, res) => {
           createdAt: p.createdAt,
           replyCount: p.replyCount || 0,
           canDelete: admin || p.authorEmail === String(req.user.email || "").toLowerCase(),
+          canEdit: p.authorEmail === String(req.user.email || "").toLowerCase(),
         };
       })
     );
@@ -63,10 +64,41 @@ router.post("/", requireLogin, async (req, res) => {
       createdAt: post.createdAt,
       replyCount: 0,
       canDelete: true,
+      canEdit: true,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not save your post." });
+  }
+});
+
+// Edit a post. Only the post's own author can do this (not even the admin,
+// so nobody's words get changed except by the person who wrote them).
+router.put("/:id", requireLogin, async (req, res) => {
+  try {
+    var post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ error: "That post no longer exists." });
+    if (post.authorEmail !== String(req.user.email || "").toLowerCase()) {
+      return res.status(403).json({ error: "You can only edit your own posts." });
+    }
+    var body = String(req.body.body || "").trim();
+    if (!body) return res.status(400).json({ error: "Write something first." });
+    if (body.length > 130) return res.status(400).json({ error: "Please keep it to 130 characters or fewer." });
+    post.body = body;
+    await post.save();
+    res.json({
+      id: post._id,
+      name: displayName(post.authorName),
+      category: post.category,
+      body: post.body,
+      createdAt: post.createdAt,
+      replyCount: post.replyCount || 0,
+      canDelete: true,
+      canEdit: true,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save your changes." });
   }
 });
 
