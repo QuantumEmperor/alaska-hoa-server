@@ -17,6 +17,7 @@ const registrationSchema = new mongoose.Schema(
     mgr: { type: String, required: true }, // the board / a property management company / not sure
     mgrName: { type: String, default: "", trim: true },
     reserve: { type: String, required: true }, // yes / no / not sure
+    lawsuit: { type: String, default: "" }, // yes / no / not sure
 
     newsletter: { type: Boolean, default: false },
     agreedToPrivacyPolicy: { type: Boolean, required: true },
