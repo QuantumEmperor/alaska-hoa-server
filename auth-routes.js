@@ -94,4 +94,16 @@ router.get("/admin/registrations", requireLogin, requireAdmin, async (req, res) 
   res.json(all);
 });
 
+// Admin only: delete a registration (e.g. to free up a test email address).
+router.delete("/admin/registrations/:id", requireLogin, requireAdmin, async (req, res) => {
+  try {
+    const doc = await Registration.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ error: "That registration no longer exists." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not delete that registration." });
+  }
+});
+
 module.exports = router;
