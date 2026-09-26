@@ -46,7 +46,19 @@ router.post("/register", async (req, res) => {
 
     notifyAdmin(
       "New HOA Next Door sign-up: " + doc.name,
-      "Name: " + doc.name + "\nEmail: " + doc.email + "\nCondo: " + doc.condo + "\nUnit: " + doc.unit + "\nRole: " + doc.role
+      "Name: " + doc.name +
+        "\nEmail: " + doc.email +
+        "\nUnit: " + doc.unit +
+        "\nRole: " + doc.role +
+        "\nCondo/HOA: " + doc.condo +
+        "\nUnits: " + doc.units +
+        "\nMonthly dues: $" + doc.dues +
+        "\nDues cover: " + ((doc.covers && doc.covers.length) ? doc.covers.join(", ") : "—") +
+        "\nManaged by: " + doc.mgr + (doc.mgrName ? " — " + doc.mgrName : "") +
+        "\nReserve fund: " + doc.reserve +
+        "\nIn a lawsuit: " + doc.lawsuit +
+        "\nQuorum: " + doc.quorum +
+        "\nWants newsletter: " + (doc.newsletter ? "Yes" : "No")
     );
 
     const token = sign(doc);
