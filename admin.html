@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HOA Next Door – Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#1d2b3a;--mute:#62717f;--line:#dbe2ea;--blue:#2f5d8a;--blueSoft:#dde9f5;--warn:#c0562b;--warnSoft:#fbe3d8;--ok:#2e8b57;--okSoft:#d9f0e3}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);padding:20px}
+.wrap{max-width:720px;margin:0 auto}
+h1{font-size:22px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+label{display:block;font-weight:700;font-size:13px;margin:10px 0 4px}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:15px}
+button{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;font-size:15px;cursor:pointer;margin-top:14px}
+button:disabled{opacity:.6;cursor:default}
+button.small{background:var(--mute);padding:6px 12px;font-size:13px;margin-top:0}
+.err{color:var(--warn);font-weight:700;font-size:14px;margin-top:8px;min-height:18px}
+.reg{border-left:4px solid var(--blue);padding:10px 14px;margin-bottom:10px;background:var(--blueSoft);border-radius:8px}
+.reg .name{font-weight:800;font-size:16px}
+.reg .meta{color:var(--mute);font-size:13px;margin-top:2px}
+.reg .row{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:13px}
+.reg .row div{min-width:140px}
+.reg .row b{display:block;color:var(--mute);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.flag{display:inline-block;background:var(--warnSoft);color:var(--warn);font-weight:700;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:6px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.empty{color:var(--mute);text-align:center;padding:30px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+var API_BASE="https://alaska-hoa-server.onrender.com";
+var token=null;
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]});}
+
+function vLogin(err,busy){
+ return '<h1>HOA Next Door — Admin</h1><div class="card">'+
+ '<label for="a_email">Admin email</label><input id="a_email" type="email" autocomplete="off">'+
+ '<label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="off">'+
+ '<p class="err">'+esc(err||"")+'</p>'+
+ '<button id="loginbtn"'+(busy?" disabled":"")+'>'+(busy?"Signing in…":"Sign in")+'</button>'+
+ '</div>';
+}
+
+function vList(items){
+ var top='<div class="topbar"><h1>Registrations ('+items.length+')</h1><button class="small" id="refreshbtn">Refresh</button></div>';
+ if(!items.length)return top+'<div class="empty">No registrations yet.</div>';
+ return top+items.map(function(r){
+  var covers=(r.covers||[]).join(", ")||"—";
+  var when=r.createdAt?new Date(r.createdAt).toLocaleString():"—";
+  var flags="";
+  if(r.lawsuit==="Yes")flags+='<span class="flag">Lawsuit: Yes</span>';
+  if(r.reserve==="No")flags+='<span class="flag">No reserve fund</span>';
+  return '<div class="reg"><div class="name">'+esc(r.name)+flags+'</div>'+
+   '<div class="meta">'+esc(r.email)+' · Unit '+esc(r.unit)+' · '+esc(r.role)+' · Registered '+esc(when)+'</div>'+
+   '<div class="row">'+
+    '<div><b>Condo</b>'+esc(r.condo)+'</div>'+
+    '<div><b>Units</b>'+esc(r.units)+'</div>'+
+    '<div><b>Dues</b>$'+esc(r.dues)+'/mo</div>'+
+    '<div><b>Dues cover</b>'+esc(covers)+'</div>'+
+    '<div><b>Managed by</b>'+esc(r.mgr)+(r.mgrName?" — "+esc(r.mgrName):"")+'</div>'+
+    '<div><b>Reserve fund</b>'+esc(r.reserve)+'</div>'+
+    '<div><b>Lawsuit</b>'+esc(r.lawsuit)+'</div>'+
+    '<div><b>Quorum</b>'+esc(r.quorum)+'</div>'+
+    '<div><b>Newsletter</b>'+(r.newsletter?"Yes":"No")+'</div>'+
+   '</div>'+
+   '<button class="small pwbtn" data-id="'+esc(r._id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">Reset password</button> '+
+   '<button class="small delbtn" data-id="'+esc(r._id)+'" data-name="'+esc(r.name)+'" style="background:var(--warn);margin-top:10px">Delete</button>'+
+   '</div>';
+ }).join("");
+}
+
+function render(html){document.getElementById("app").innerHTML=html;}
+
+function apiFetch(path,opts){
+ var ctrl=new AbortController();var timer=setTimeout(function(){ctrl.abort()},25000);
+ opts=opts||{};opts.signal=ctrl.signal;
+ return fetch(API_BASE+path,opts).finally(function(){clearTimeout(timer)});
+}
+
+function doLogin(){
+ var email=document.getElementById("a_email").value.trim();
+ var pass=document.getElementById("a_pass").value.trim();
+ if(!email||!pass){render(vLogin("Enter your email and password."));return}
+ render(vLogin("",true));
+ apiFetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:pass})})
+  .then(function(res){return res.json().then(function(body){return {ok:res.ok,body:body}})})
+  .then(function(out){
+   if(!out.ok){render(vLogin(out.body.error||"Could not sign in."));return}
+   token=out.body.token;
+   loadRegs();
+  })
+  .catch(function(e){render(vLogin(e&&e.name==="AbortError"?"Server is taking too long — it may be waking up. Try again in a minute.":"Could not reach the server."))});
+}
+
+function loadRegs(){
+ render('<h1>Registrations</h1><div class="empty">Loading…</div>');
+ apiFetch("/api/auth/admin/registrations",{headers:{"Authorization":"Bearer "+token}})
+  .then(function(res){return res.json().then(function(body){return {ok:res.ok,body:body}})})
+  .then(function(out){
+   if(!out.ok){render(vLogin(out.body.error||"Only the administrator can see this."));token=null;return}
+   render(vList(out.body));
+  })
+  .catch(function(){render(vLogin("Could not reach the server. Try again."))});
+}
+
+document.addEventListener("click",function(e){
+ if(e.target.id=="loginbtn")doLogin();
+ if(e.target.id=="refreshbtn")loadRegs();
+ if(e.target.classList&&e.target.classList.contains("delbtn")){
+  var id=e.target.dataset.id,name=e.target.dataset.name;
+  if(!confirm("Delete the registration for "+name+"? This cannot be undone."))return;
+  e.target.disabled=true;e.target.textContent="Deleting…";
+  apiFetch("/api/auth/admin/registrations/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+token}})
+   .then(function(res){return res.json().then(function(body){return {ok:res.ok,body:body}})})
+   .then(function(out){
+    if(!out.ok){alert(out.body.error||"Could not delete that registration.");e.target.disabled=false;e.target.textContent="Delete";return}
+    loadRegs();
+   })
+   .catch(function(){alert("Could not reach the server. Try again.");e.target.disabled=false;e.target.textContent="Delete"});
+ }
+ if(e.target.classList&&e.target.classList.contains("pwbtn")){
+  var pid=e.target.dataset.id,pname=e.target.dataset.name;
+  var newPass=prompt("New password for "+pname+" (at least 8 characters). Tell them this new password yourself — texting or calling works.");
+  if(newPass===null)return;
+  newPass=newPass.trim();
+  if(newPass.length<8){alert("Password must be at least 8 characters.");return}
+  e.target.disabled=true;e.target.textContent="Saving…";
+  apiFetch("/api/auth/admin/registrations/"+pid+"/password",{method:"PUT",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({password:newPass})})
+   .then(function(res){return res.json().then(function(body){return {ok:res.ok,body:body}})})
+   .then(function(out){
+    e.target.disabled=false;e.target.textContent="Reset password";
+    if(!out.ok){alert(out.body.error||"Could not update that password.");return}
+    alert("Password updated for "+pname+". Let them know their new password.");
+   })
+   .catch(function(){alert("Could not reach the server. Try again.");e.target.disabled=false;e.target.textContent="Reset password"});
+ }
+});
+document.addEventListener("keydown",function(e){
+ if(e.key=="Enter"&&(e.target.id=="a_email"||e.target.id=="a_pass"))doLogin();
+});
+render(vLogin());
+</script>
+</body>
+</html>

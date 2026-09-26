@@ -1,9 +1,10 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const Registration = require("./registration-model");
 const { requireLogin, requireAdmin } = require("./auth-middleware");
-const { notifyAdmin } = require("./mailer");
+const { notifyAdmin, sendMail } = require("./mailer");
 
 const router = express.Router();
 
@@ -98,12 +99,93 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Forgot password: emails a one-time reset link if that email is registered.
+// Always responds the same way either way, so this can't be used to check
+// which emails have accounts.
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Enter your email." });
+
+    const doc = await Registration.findOne({ email: String(email).toLowerCase() });
+    if (doc) {
+      const token = crypto.randomBytes(32).toString("hex");
+      doc.resetToken = token;
+      doc.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await doc.save();
+
+      const site = process.env.SITE_URL || "https://quantumemperor.github.io/hoa-next-door-app";
+      const link = site + "/?reset=" + token;
+      sendMail(
+        doc.email,
+        "Reset your HOA Next Door password",
+        "Someone (hopefully you) asked to reset the password on your HOA Next Door account.\n\n" +
+          "Click this link to set a new password. It expires in 1 hour:\n" + link +
+          "\n\nIf you didn't ask for this, you can safely ignore this email."
+      );
+    }
+    res.json({ ok: true, message: "If that email is registered, a reset link has been sent." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+// Reset password: takes the token from the emailed link plus a new password.
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: "Missing reset link or new password." });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
+    }
+    const doc = await Registration.findOne({ resetToken: token, resetTokenExpires: { $gt: new Date() } });
+    if (!doc) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    }
+    doc.passwordHash = await bcrypt.hash(password, 10);
+    doc.resetToken = null;
+    doc.resetTokenExpires = null;
+    await doc.save();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not reset your password. Please try again." });
+  }
+});
+
 // Admin only: list every registration, in full. This is the one
 // place all the sign-up data can be seen, and only your account
 // (ADMIN_EMAIL in the server's settings) can reach it.
 router.get("/admin/registrations", requireLogin, requireAdmin, async (req, res) => {
   const all = await Registration.find().sort({ createdAt: -1 }).select("-passwordHash");
   res.json(all);
+});
+
+// Admin only: set a new password for someone directly. Use this when a
+// member is locked out and can't receive a "forgot password" email (that
+// email can currently only be delivered to your own admin address, since no
+// domain is verified with Resend yet). Tell the member the new password
+// yourself (text, call, in person).
+router.put("/admin/registrations/:id/password", requireLogin, requireAdmin, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters." });
+    }
+    const doc = await Registration.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "That registration no longer exists." });
+    doc.passwordHash = await bcrypt.hash(password, 10);
+    doc.resetToken = null;
+    doc.resetTokenExpires = null;
+    await doc.save();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update that password." });
+  }
 });
 
 // Admin only: delete a registration (e.g. to free up a test email address).
