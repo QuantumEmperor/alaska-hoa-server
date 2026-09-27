@@ -3,6 +3,7 @@ const Post = require("./post-model");
 const Reply = require("./reply-model");
 const Registration = require("./registration-model");
 const { requireLogin } = require("./auth-middleware");
+const { sendMail } = require("./mailer");
 
 const router = express.Router();
 
@@ -156,6 +157,18 @@ router.post("/:id/replies", requireLogin, async (req, res) => {
     var reply = await Reply.create({ postId: post._id, authorName: author.name, authorEmail: author.email, body: body });
     post.replyCount = (post.replyCount || 0) + 1;
     await post.save();
+
+    // Let the original poster know someone replied, unless they replied to
+    // their own post.
+    if (post.authorEmail && post.authorEmail !== author.email) {
+      sendMail(
+        post.authorEmail,
+        displayName(author.name) + " replied to your post on HOA Next Door",
+        displayName(author.name) + " replied to your post:\n\"" + post.body + "\"\n\n" +
+          "Their reply:\n\"" + body + "\"\n\n" +
+          "See it here: https://quantumemperor.github.io/hoa-next-door-app/"
+      );
+    }
 
     res.status(201).json({
       id: reply._id,

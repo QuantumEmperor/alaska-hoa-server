@@ -4,20 +4,22 @@
 // sends over a normal HTTPS web request instead, so it isn't blocked.
 var fetchFn = typeof fetch === "function" ? fetch : require("node-fetch");
 
-function notifyAdmin(subject, text) {
-  if (!process.env.RESEND_API_KEY || !process.env.ADMIN_EMAIL) {
-    console.log("Email not configured; skipping notification:", subject);
-    return;
+// General-purpose sender. hoanextdoor.com is now verified with Resend, so
+// this can send to anyone, not just your own admin address.
+function sendMail(to, subject, text) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log("Email not configured; skipping email to", to, "-", subject);
+    return Promise.resolve();
   }
-  fetchFn("https://api.resend.com/emails", {
+  return fetchFn("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + process.env.RESEND_API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "HOA Next Door <onboarding@resend.dev>",
-      to: [process.env.ADMIN_EMAIL],
+      from: "HOA Next Door <notifications@hoanextdoor.com>",
+      to: [to],
       subject: subject,
       text: text,
     }),
@@ -25,13 +27,21 @@ function notifyAdmin(subject, text) {
     .then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) {
-          console.error("Could not send notification email:", res.status, t);
+          console.error("Could not send email to", to, ":", res.status, t);
         });
       }
     })
     .catch(function (err) {
-      console.error("Could not send notification email:", err.message);
+      console.error("Could not send email to", to, ":", err.message);
     });
 }
 
-module.exports = { notifyAdmin };
+function notifyAdmin(subject, text) {
+  if (!process.env.ADMIN_EMAIL) {
+    console.log("Email not configured; skipping notification:", subject);
+    return;
+  }
+  return sendMail(process.env.ADMIN_EMAIL, subject, text);
+}
+
+module.exports = { notifyAdmin, sendMail };
