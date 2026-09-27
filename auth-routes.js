@@ -67,13 +67,26 @@ router.post("/register", async (req, res) => {
     const token = sign(doc);
     res.status(201).json({
       token,
-      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues, notifyReplies: doc.notifyReplies },
+      user: fullUser(doc),
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Something went wrong while signing you up." });
   }
 });
+
+// Shape of "your own account" data sent back to the app after sign up,
+// sign in, or an info update — everything the app needs to show and
+// pre-fill your own info, but never the password hash or reset tokens.
+function fullUser(doc) {
+  return {
+    name: doc.name, email: doc.email, unit: doc.unit, role: doc.role,
+    condo: doc.condo, units: doc.units, dues: doc.dues, covers: doc.covers,
+    mgr: doc.mgr, mgrName: doc.mgrName, reserve: doc.reserve,
+    lawsuit: doc.lawsuit, quorum: doc.quorum,
+    newsletter: doc.newsletter, notifyReplies: doc.notifyReplies,
+  };
+}
 
 // Sign in: email + password, returns a login token the app remembers.
 router.post("/login", async (req, res) => {
@@ -93,7 +106,7 @@ router.post("/login", async (req, res) => {
     const token = sign(doc);
     res.json({
       token,
-      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues, notifyReplies: doc.notifyReplies },
+      user: fullUser(doc),
     });
   } catch (err) {
     console.error(err);
@@ -112,6 +125,58 @@ router.put("/me/notifications", requireLogin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not save that setting." });
+  }
+});
+
+// Update your own info (name, unit, condo details, etc). Email and password
+// aren't changed here — email stays fixed to keep sign-in simple, and
+// password changes go through "forgot password" or the admin.
+router.put("/me", requireLogin, async (req, res) => {
+  try {
+    const {
+      name, unit, role, condo, units, dues, covers,
+      mgr, mgrName, reserve, lawsuit, quorum, newsletter,
+    } = req.body;
+
+    if (!name || !unit || !condo) {
+      return res.status(400).json({ error: "Please fill in your name, unit, and condo name." });
+    }
+    if (!role) return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
+    if (!(+units > 0)) return res.status(400).json({ error: "Enter how many units are in your condo." });
+    if (dues === undefined || dues === "" || !(+dues >= 0)) {
+      return res.status(400).json({ error: "Enter the monthly dues, even if it is 0." });
+    }
+    if (!covers || !covers.length) return res.status(400).json({ error: "Select at least one thing the dues cover." });
+    if (!mgr) return res.status(400).json({ error: "Please select who manages the condo." });
+    if (String(mgr).indexOf("property") > -1 && !mgrName) {
+      return res.status(400).json({ error: "Enter the name of your property management company." });
+    }
+    if (!reserve) return res.status(400).json({ error: "Please answer whether the association has a reserve fund." });
+    if (!lawsuit) return res.status(400).json({ error: "Please answer whether the association is in a lawsuit." });
+    if (!quorum) return res.status(400).json({ error: "Please answer how many owners are needed for a quorum." });
+
+    const doc = await Registration.findById(req.user.id);
+    if (!doc) return res.status(401).json({ error: "Please sign in again." });
+
+    doc.name = name;
+    doc.unit = unit;
+    doc.role = role;
+    doc.condo = condo;
+    doc.units = units;
+    doc.dues = dues;
+    doc.covers = covers;
+    doc.mgr = mgr;
+    doc.mgrName = String(mgr).indexOf("property") > -1 ? mgrName : "";
+    doc.reserve = reserve;
+    doc.lawsuit = lawsuit;
+    doc.quorum = quorum;
+    doc.newsletter = !!newsletter;
+    await doc.save();
+
+    res.json({ ok: true, user: fullUser(doc) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save your changes." });
   }
 });
 
