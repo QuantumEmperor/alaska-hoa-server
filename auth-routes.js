@@ -3,6 +3,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const Registration = require("./registration-model");
+const Post = require("./post-model");
+const Reply = require("./reply-model");
 const { requireLogin, requireAdmin } = require("./auth-middleware");
 const { notifyAdmin, sendMail } = require("./mailer");
 
@@ -174,8 +176,23 @@ router.post("/reset-password", async (req, res) => {
 // place all the sign-up data can be seen, and only your account
 // (ADMIN_EMAIL in the server's settings) can reach it.
 router.get("/admin/registrations", requireLogin, requireAdmin, async (req, res) => {
-  const all = await Registration.find().sort({ createdAt: -1 }).select("-passwordHash");
+  const all = await Registration.find().sort({ createdAt: -1 }).select("-passwordHash -resetToken -resetTokenExpires");
   res.json(all);
+});
+
+// Admin only: a full backup of everything (registrations, posts, replies)
+// as one JSON file to download and keep somewhere safe.
+router.get("/admin/backup", requireLogin, requireAdmin, async (req, res) => {
+  try {
+    const registrations = await Registration.find().select("-passwordHash -resetToken -resetTokenExpires");
+    const posts = await Post.find();
+    const replies = await Reply.find();
+    res.setHeader("Content-Disposition", "attachment; filename=hoa-next-door-backup-" + new Date().toISOString().slice(0, 10) + ".json");
+    res.json({ exportedAt: new Date(), registrations, posts, replies });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not create the backup." });
+  }
 });
 
 // Admin only: set a new password for someone directly. Use this when a
