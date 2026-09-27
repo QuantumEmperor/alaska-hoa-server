@@ -65,7 +65,7 @@ router.post("/register", async (req, res) => {
     const token = sign(doc);
     res.status(201).json({
       token,
-      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues },
+      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues, notifyReplies: doc.notifyReplies },
     });
   } catch (err) {
     console.error(err);
@@ -91,11 +91,25 @@ router.post("/login", async (req, res) => {
     const token = sign(doc);
     res.json({
       token,
-      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues },
+      user: { name: doc.name, email: doc.email, unit: doc.unit, condo: doc.condo, units: doc.units, dues: doc.dues, notifyReplies: doc.notifyReplies },
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Something went wrong while signing you in." });
+  }
+});
+
+// Update your own notification preference (email me when someone replies).
+router.put("/me/notifications", requireLogin, async (req, res) => {
+  try {
+    const doc = await Registration.findById(req.user.id);
+    if (!doc) return res.status(401).json({ error: "Please sign in again." });
+    doc.notifyReplies = !!req.body.notifyReplies;
+    await doc.save();
+    res.json({ ok: true, notifyReplies: doc.notifyReplies });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save that setting." });
   }
 });
 

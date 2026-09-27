@@ -159,15 +159,19 @@ router.post("/:id/replies", requireLogin, async (req, res) => {
     await post.save();
 
     // Let the original poster know someone replied, unless they replied to
-    // their own post.
+    // their own post or turned this notification off.
     if (post.authorEmail && post.authorEmail !== author.email) {
-      sendMail(
-        post.authorEmail,
-        displayName(author.name) + " replied to your post on HOA Next Door",
-        displayName(author.name) + " replied to your post:\n\"" + post.body + "\"\n\n" +
-          "Their reply:\n\"" + body + "\"\n\n" +
-          "See it here: https://quantumemperor.github.io/hoa-next-door-app/"
-      );
+      var origAuthor = await Registration.findOne({ email: post.authorEmail });
+      if (origAuthor && origAuthor.notifyReplies !== false) {
+        sendMail(
+          post.authorEmail,
+          displayName(author.name) + " replied to your post on HOA Next Door",
+          displayName(author.name) + " replied to your post:\n\"" + post.body + "\"\n\n" +
+            "Their reply:\n\"" + body + "\"\n\n" +
+            "See it here: https://quantumemperor.github.io/hoa-next-door-app/\n\n" +
+            "(You can turn off these emails anytime by signing in and going to Notification settings.)"
+        );
+      }
     }
 
     res.status(201).json({

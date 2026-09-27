@@ -22,6 +22,13 @@ const registrationSchema = new mongoose.Schema(
 
     newsletter: { type: Boolean, default: false },
     agreedToPrivacyPolicy: { type: Boolean, required: true },
+
+    // Whether to email this person when someone replies to their post.
+    notifyReplies: { type: Boolean, default: true },
+
+    // Set only while a "forgot password" reset is in progress; cleared once used.
+    resetToken: { type: String, default: null },
+    resetTokenExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );
