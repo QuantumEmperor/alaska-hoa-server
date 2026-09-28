@@ -27,7 +27,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Please fill in your name, email, password, and HOA name." });
     }
     if (!role) {
-      return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
+      return res.status(400).json({ error: "Please select what you are (owner or board member)." });
     }
     if (!agreedToPrivacyPolicy) {
       return res.status(400).json({ error: "Please agree to the Privacy Policy to continue." });
@@ -145,7 +145,7 @@ router.put("/me", requireLogin, async (req, res) => {
       doc.condo = b.condo;
     }
     if (b.role !== undefined) {
-      if (!b.role) return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
+      if (!b.role) return res.status(400).json({ error: "Please select what you are (owner or board member)." });
       doc.role = b.role;
     }
     if (b.unit !== undefined) doc.unit = b.unit;
