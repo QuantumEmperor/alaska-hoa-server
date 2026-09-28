@@ -16,17 +16,18 @@ function sign(user) {
   });
 }
 
-// Sign up: matches the fields on the registration screen in the app.
+// Sign up: just the essentials. The rest of the HOA's profile (units,
+// dues, management, reserve fund, etc) is collected afterward, on a
+// separate "build your HOA's profile" step that's entirely optional.
 router.post("/register", async (req, res) => {
   try {
-    const {
-      name, email, password, unit, role,
-      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit, quorum,
-      newsletter, agreedToPrivacyPolicy,
-    } = req.body;
+    const { name, email, password, unit, role, condo, newsletter, agreedToPrivacyPolicy } = req.body;
 
-    if (!name || !email || !password || !unit || !condo) {
-      return res.status(400).json({ error: "Please fill in your name, email, password, unit, and condo name." });
+    if (!name || !email || !password || !condo) {
+      return res.status(400).json({ error: "Please fill in your name, email, password, and HOA name." });
+    }
+    if (!role) {
+      return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
     }
     if (!agreedToPrivacyPolicy) {
       return res.status(400).json({ error: "Please agree to the Privacy Policy to continue." });
@@ -42,26 +43,19 @@ router.post("/register", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const doc = await Registration.create({
-      name, email: String(email).toLowerCase(), passwordHash, unit, role,
-      condo, units, dues, covers, mgr, mgrName, reserve, lawsuit, quorum,
-      newsletter: !!newsletter, agreedToPrivacyPolicy: true,
+      name, email: String(email).toLowerCase(), passwordHash, unit: unit || "", role,
+      condo, newsletter: !!newsletter, agreedToPrivacyPolicy: true,
     });
 
     notifyAdmin(
       "New HOA Next Door sign-up: " + doc.name,
       "Name: " + doc.name +
         "\nEmail: " + doc.email +
-        "\nUnit: " + doc.unit +
+        "\nUnit: " + (doc.unit || "—") +
         "\nRole: " + doc.role +
         "\nCondo/HOA: " + doc.condo +
-        "\nUnits: " + doc.units +
-        "\nMonthly dues: $" + doc.dues +
-        "\nDues cover: " + ((doc.covers && doc.covers.length) ? doc.covers.join(", ") : "—") +
-        "\nManaged by: " + doc.mgr + (doc.mgrName ? " — " + doc.mgrName : "") +
-        "\nReserve fund: " + doc.reserve +
-        "\nIn a lawsuit: " + doc.lawsuit +
-        "\nQuorum: " + doc.quorum +
-        "\nWants newsletter: " + (doc.newsletter ? "Yes" : "No")
+        "\nWants newsletter: " + (doc.newsletter ? "Yes" : "No") +
+        "\n\n(The rest of their HOA profile is still to come — they'll fill it in after joining, or later.)"
     );
 
     const token = sign(doc);
@@ -131,48 +125,57 @@ router.put("/me/notifications", requireLogin, async (req, res) => {
 // Update your own info (name, unit, condo details, etc). Email and password
 // aren't changed here — email stays fixed to keep sign-in simple, and
 // password changes go through "forgot password" or the admin.
+// Update your own info. This is a partial update: only fields actually
+// sent in the request are validated and changed — anything left out is
+// untouched. That's what lets the "build your HOA's profile" step (right
+// after sign-up) and "Edit info" (anytime after) share this same endpoint,
+// even though neither one requires filling in everything at once.
 router.put("/me", requireLogin, async (req, res) => {
   try {
-    const {
-      name, unit, role, condo, units, dues, covers,
-      mgr, mgrName, reserve, lawsuit, quorum, newsletter,
-    } = req.body;
-
-    if (!name || !unit || !condo) {
-      return res.status(400).json({ error: "Please fill in your name, unit, and condo name." });
-    }
-    if (!role) return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
-    if (!(+units > 0)) return res.status(400).json({ error: "Enter how many units are in your condo." });
-    if (dues === undefined || dues === "" || !(+dues >= 0)) {
-      return res.status(400).json({ error: "Enter the monthly dues, even if it is 0." });
-    }
-    if (!covers || !covers.length) return res.status(400).json({ error: "Select at least one thing the dues cover." });
-    if (!mgr) return res.status(400).json({ error: "Please select who manages the condo." });
-    if (String(mgr).indexOf("property") > -1 && !mgrName) {
-      return res.status(400).json({ error: "Enter the name of your property management company." });
-    }
-    if (!reserve) return res.status(400).json({ error: "Please answer whether the association has a reserve fund." });
-    if (!lawsuit) return res.status(400).json({ error: "Please answer whether the association is in a lawsuit." });
-    if (!quorum) return res.status(400).json({ error: "Please answer how many owners are needed for a quorum." });
-
+    const b = req.body || {};
     const doc = await Registration.findById(req.user.id);
     if (!doc) return res.status(401).json({ error: "Please sign in again." });
 
-    doc.name = name;
-    doc.unit = unit;
-    doc.role = role;
-    doc.condo = condo;
-    doc.units = units;
-    doc.dues = dues;
-    doc.covers = covers;
-    doc.mgr = mgr;
-    doc.mgrName = String(mgr).indexOf("property") > -1 ? mgrName : "";
-    doc.reserve = reserve;
-    doc.lawsuit = lawsuit;
-    doc.quorum = quorum;
-    doc.newsletter = !!newsletter;
-    await doc.save();
+    if (b.name !== undefined) {
+      if (!String(b.name).trim()) return res.status(400).json({ error: "Please fill in your name." });
+      doc.name = b.name;
+    }
+    if (b.condo !== undefined) {
+      if (!String(b.condo).trim()) return res.status(400).json({ error: "Please fill in the name of your HOA." });
+      doc.condo = b.condo;
+    }
+    if (b.role !== undefined) {
+      if (!b.role) return res.status(400).json({ error: "Please select what you are (owner, renter, or board member)." });
+      doc.role = b.role;
+    }
+    if (b.unit !== undefined) doc.unit = b.unit;
 
+    if (b.units !== undefined) {
+      if (b.units !== "" && !(+b.units > 0)) {
+        return res.status(400).json({ error: "Enter a valid number of units, or leave it blank." });
+      }
+      doc.units = b.units === "" ? null : b.units;
+    }
+    if (b.dues !== undefined) {
+      if (b.dues !== "" && !(+b.dues >= 0)) {
+        return res.status(400).json({ error: "Enter a valid dues amount, or leave it blank." });
+      }
+      doc.dues = b.dues === "" ? null : b.dues;
+    }
+    if (b.covers !== undefined) doc.covers = b.covers;
+    if (b.mgr !== undefined) {
+      if (String(b.mgr).indexOf("property") > -1 && !b.mgrName) {
+        return res.status(400).json({ error: "Enter the name of your property management company." });
+      }
+      doc.mgr = b.mgr;
+      doc.mgrName = String(b.mgr).indexOf("property") > -1 ? b.mgrName : "";
+    }
+    if (b.reserve !== undefined) doc.reserve = b.reserve;
+    if (b.lawsuit !== undefined) doc.lawsuit = b.lawsuit;
+    if (b.quorum !== undefined) doc.quorum = b.quorum;
+    if (b.newsletter !== undefined) doc.newsletter = !!b.newsletter;
+
+    await doc.save();
     res.json({ ok: true, user: fullUser(doc) });
   } catch (err) {
     console.error(err);
