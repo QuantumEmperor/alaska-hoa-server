@@ -2,8 +2,8 @@ const express = require("express");
 const Post = require("./post-model");
 const Reply = require("./reply-model");
 const Registration = require("./registration-model");
-const { requireLogin } = require("./auth-middleware");
-const { sendMail, notifyAdmin } = require("./mailer");
+const { requireLogin, requireActive } = require("./auth-middleware");
+const { sendMail } = require("./mailer");
 
 const router = express.Router();
 
@@ -45,28 +45,17 @@ router.get("/", requireLogin, async (req, res) => {
 });
 
 // Create a new post. Any signed-in person can post.
-router.post("/", requireLogin, async (req, res) => {
+router.post("/", requireLogin, requireActive, async (req, res) => {
   try {
     var body = String(req.body.body || "").trim();
     var category = String(req.body.category || "").trim();
     if (!body) return res.status(400).json({ error: "Write something first." });
-    if (body.length > 130) return res.status(400).json({ error: "Please keep it to 130 characters or fewer." });
     if (!category) return res.status(400).json({ error: "Pick a category." });
 
     var author = await Registration.findById(req.user.id);
     if (!author) return res.status(401).json({ error: "Please sign in again." });
 
     var post = await Post.create({ authorName: author.name, authorEmail: author.email, category: category, body: body });
-
-    // Let the admin know someone started a new post (skip the admin's own posts).
-    if (!isAdminEmail(author.email)) {
-      notifyAdmin(
-        "New post on HOA Next Door from " + displayName(author.name),
-        displayName(author.name) + " posted in \"" + category + "\":\n\"" + body + "\"\n\n" +
-          "See it here: https://quantumemperor.github.io/hoa-next-door-app/"
-      );
-    }
-
     res.status(201).json({
       id: post._id,
       name: displayName(post.authorName),
@@ -85,7 +74,7 @@ router.post("/", requireLogin, async (req, res) => {
 
 // Edit a post. Only the post's own author can do this (not even the admin,
 // so nobody's words get changed except by the person who wrote them).
-router.put("/:id", requireLogin, async (req, res) => {
+router.put("/:id", requireLogin, requireActive, async (req, res) => {
   try {
     var post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ error: "That post no longer exists." });
@@ -94,7 +83,6 @@ router.put("/:id", requireLogin, async (req, res) => {
     }
     var body = String(req.body.body || "").trim();
     if (!body) return res.status(400).json({ error: "Write something first." });
-    if (body.length > 130) return res.status(400).json({ error: "Please keep it to 130 characters or fewer." });
     post.body = body;
     await post.save();
     res.json({
@@ -152,11 +140,10 @@ router.get("/:id/replies", requireLogin, async (req, res) => {
 });
 
 // Add a reply to a post. Any signed-in person can reply.
-router.post("/:id/replies", requireLogin, async (req, res) => {
+router.post("/:id/replies", requireLogin, requireActive, async (req, res) => {
   try {
     var body = String(req.body.body || "").trim();
     if (!body) return res.status(400).json({ error: "Write something first." });
-    if (body.length > 130) return res.status(400).json({ error: "Please keep it to 130 characters or fewer." });
 
     var post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ error: "That post no longer exists." });

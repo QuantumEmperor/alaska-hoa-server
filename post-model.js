@@ -6,7 +6,7 @@ const postSchema = new mongoose.Schema(
     authorName: { type: String, required: true, trim: true },
     authorEmail: { type: String, required: true, trim: true, lowercase: true },
     category: { type: String, required: true, trim: true },
-    body: { type: String, required: true, trim: true, maxlength: 130 },
+    body: { type: String, required: true, trim: true },
     replyCount: { type: Number, default: 0 },
   },
   { timestamps: true }
