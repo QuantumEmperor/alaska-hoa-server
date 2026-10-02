@@ -3,7 +3,7 @@ const Post = require("./post-model");
 const Reply = require("./reply-model");
 const Registration = require("./registration-model");
 const { requireLogin } = require("./auth-middleware");
-const { sendMail } = require("./mailer");
+const { sendMail, notifyAdmin } = require("./mailer");
 
 const router = express.Router();
 
@@ -57,6 +57,16 @@ router.post("/", requireLogin, async (req, res) => {
     if (!author) return res.status(401).json({ error: "Please sign in again." });
 
     var post = await Post.create({ authorName: author.name, authorEmail: author.email, category: category, body: body });
+
+    // Let the admin know someone started a new post (skip the admin's own posts).
+    if (!isAdminEmail(author.email)) {
+      notifyAdmin(
+        "New post on HOA Next Door from " + displayName(author.name),
+        displayName(author.name) + " posted in \"" + category + "\":\n\"" + body + "\"\n\n" +
+          "See it here: https://quantumemperor.github.io/hoa-next-door-app/"
+      );
+    }
+
     res.status(201).json({
       id: post._id,
       name: displayName(post.authorName),
