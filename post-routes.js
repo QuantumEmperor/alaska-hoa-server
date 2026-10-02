@@ -3,7 +3,7 @@ const Post = require("./post-model");
 const Reply = require("./reply-model");
 const Registration = require("./registration-model");
 const { requireLogin, requireActive } = require("./auth-middleware");
-const { sendMail } = require("./mailer");
+const { sendMail, notifyAdmin } = require("./mailer");
 
 const router = express.Router();
 
@@ -56,6 +56,18 @@ router.post("/", requireLogin, requireActive, async (req, res) => {
     if (!author) return res.status(401).json({ error: "Please sign in again." });
 
     var post = await Post.create({ authorName: author.name, authorEmail: author.email, category: category, body: body });
+
+    // Let you know the first time someone posts — a good signal that a
+    // new member is actually engaging, not just a sign-up that went quiet.
+    var postCountForAuthor = await Post.countDocuments({ authorEmail: author.email });
+    if (postCountForAuthor === 1) {
+      notifyAdmin(
+        author.name + " made their first post on HOA Next Door",
+        author.name + " (" + author.email + ") just posted for the first time, in " + category + ":\n\n\"" + body + "\"\n\n" +
+          "See it here: https://quantumemperor.github.io/hoa-next-door-app/"
+      );
+    }
+
     res.status(201).json({
       id: post._id,
       name: displayName(post.authorName),
