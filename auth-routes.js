@@ -78,6 +78,7 @@ function fullUser(doc) {
     condo: doc.condo, units: doc.units, dues: doc.dues, covers: doc.covers,
     mgr: doc.mgr, mgrName: doc.mgrName, reserve: doc.reserve,
     lawsuit: doc.lawsuit, quorum: doc.quorum,
+    age55plus: doc.age55plus, disability: doc.disability, fixedIncome: doc.fixedIncome,
     newsletter: doc.newsletter, notifyReplies: doc.notifyReplies,
   };
 }
@@ -173,6 +174,9 @@ router.put("/me", requireLogin, async (req, res) => {
     if (b.reserve !== undefined) doc.reserve = b.reserve;
     if (b.lawsuit !== undefined) doc.lawsuit = b.lawsuit;
     if (b.quorum !== undefined) doc.quorum = b.quorum;
+    ["age55plus", "disability", "fixedIncome"].forEach(function (k) {
+      if (b[k] !== undefined && ["Yes", "No", "Prefer not to answer", ""].indexOf(b[k]) > -1) doc[k] = b[k];
+    });
     if (b.newsletter !== undefined) doc.newsletter = !!b.newsletter;
 
     await doc.save();

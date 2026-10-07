@@ -23,6 +23,13 @@ const registrationSchema = new mongoose.Schema(
     lawsuit: { type: String, default: "" }, // yes / no / not sure
     quorum: { type: String, default: "" }, // number, percent, or "not sure" needed for a quorum
 
+    // Optional questions about the member (not the HOA). Private: shown only
+    // on the admin page, used only in anonymous totals.
+    // Each is "Yes", "No", "Prefer not to answer", or "" if never answered.
+    age55plus: { type: String, default: "" },
+    disability: { type: String, default: "" },
+    fixedIncome: { type: String, default: "" },
+
     newsletter: { type: Boolean, default: false },
     agreedToPrivacyPolicy: { type: Boolean, required: true },
 
